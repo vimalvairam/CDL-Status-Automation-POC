@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CDL Dashboard - Civil Deliverables</title>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- SheetJS (xlsx) CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --primary-blue: #1e3a8a;
+      --accent-blue: #3b82f6;
+      --light-blue: #dbeafe;
+      --highlight-blue: #2563eb;
+      --bg-gray: #f8fafc;
+      --border-color: #cbd5e1;
+      --text-dark: #0f172a;
+      --danger-red: #dc2626;
+      --success-green: #16a34a;
+      --warning-amber: #d97706;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-gray);
+      color: var(--text-dark);
+      padding: 24px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      background: #ffffff;
+      padding: 20px 24px;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      color: var(--primary-blue);
+      font-weight: 700;
+    }
+
+    .controls-container {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      background-color: var(--accent-blue);
+      color: white;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.875rem;
+      transition: background-color 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn:hover {
+      background-color: var(--primary-blue);
+    }
+
+    .btn-secondary {
+      background-color: #475569;
+    }
+    .btn-secondary:hover {
+      background-color: #1e293b;
+    }
+
+    select {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background-color: white;
+      font-size: 0.875rem;
+      font-weight: 500;
+      outline: none;
+    }
+
+    /* Stat Cards Panel */
+    .top-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 10px;
+      padding: 16px 20px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .card-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .card-metrics {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .metric-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .metric-label {
+      font-size: 0.75rem;
+      color: #64748b;
+      font-weight: 600;
+    }
+
+    .metric-value {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--primary-blue);
+    }
+
+    .metric-sub {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    /* Main Dashboard Layout */
+    .dashboard-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+
+    .tables-section {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .split-view {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    @media (max-width: 1024px) {
+      .split-view {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .table-container {
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.875rem;
+    }
+
+    th {
+      background-color: var(--primary-blue);
+      color: white;
+      padding: 12px 16px;
+      font-weight: 600;
+    }
+
+    td {
+      padding: 9px 16px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f8fafc;
+    }
+
+    /* Table styling rules */
+    .row-highlight-blue {
+      background-color: var(--light-blue) !important;
+      font-weight: 700;
+      color: var(--primary-blue);
+    }
+
+    .text-red {
+      color: var(--danger-red);
+      font-weight: 700;
+    }
+
+    .inline-input {
+      width: 70px;
+      padding: 2px 6px;
+      font-size: 0.85rem;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      text-align: right;
+    }
+
+    .chart-box {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      height: 100%;
+      min-height: 380px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chart-box h3 {
+      font-size: 1rem;
+      color: var(--primary-blue);
+      margin-bottom: 16px;
+    }
+
+    .chart-container {
+      position: relative;
+      flex-grow: 1;
+      height: 300px;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header Controls -->
+  <header>
+    <h1>Civil Deliverables (CDL) Dashboard</h1>
+    <div class="controls-container">
+      <label class="btn">
+        <span>📄 Upload CDL Excel</span>
+        <input type="file" id="cdlFileInput" accept=".xlsx, .xls">
+      </label>
+      
+      <label class="btn btn-secondary">
+        <span>📁 Upload ACC Export</span>
+        <input type="file" id="accFileInput" accept=".xlsx, .xls">
+      </label>
+
+      <select id="siteFilter">
+        <option value="ALL">All Sites</option>
+      </select>
+    </div>
+  </header>
+
+  <!-- Top Stat Cards -->
+  <div class="top-cards-grid">
+    <!-- Card: Baseline vs HE Status -->
+    <div class="card">
+      <div class="card-title">Baseline vs HE Status</div>
+      <div class="card-metrics">
+        <div class="metric-item">
+          <span class="metric-label">Required</span>
+          <span class="metric-value" id="cardReqVal">0</span>
+          <span class="metric-sub" id="cardReqPct">100%</span>
+        </div>
+        <div class="metric-item">
+          <span class="metric-label">Submitted</span>
+          <span class="metric-value" style="color: var(--success-green);" id="cardSubVal">0</span>
+          <span class="metric-sub" style="color: var(--success-green);" id="cardSubPct">0%</span>
+        </div>
+        <div class="metric-item">
+          <span class="metric-label">Not Submitted</span>
+          <span class="metric-value" style="color: var(--danger-red);" id="cardNotSubVal">0</span>
+          <span class="metric-sub" style="color: var(--danger-red);" id="cardNotSubPct">0%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Layout -->
+  <div class="dashboard-layout">
+    
+    <!-- Table 1: Civil Deliverables Summary -->
+    <div class="table-container">
+      <table id="cdlTable">
+        <thead>
+          <tr>
+            <th style="width: 70%;">Description - Civil Deliverables</th>
+            <th style="width: 30%; text-align: right;" id="t1SiteColHeader">All Sites</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Total No of drawings</td><td id="val_tot_drawings" style="text-align: right;">0</td></tr>
+          <tr><td>Total deliverables by Everest</td><td id="val_tot_everest" style="text-align: right;">0</td></tr>
+          <tr><td>Total deliverables by TCE</td><td id="val_tot_tce" style="text-align: right;">0</td></tr>
+          <tr><td>Submitted by TCE</td><td id="val_sub_tce" style="text-align: right;">0</td></tr>
+          <tr><td>Submitted by Everest</td><td id="val_sub_everest" style="text-align: right;">0</td></tr>
+          <tr><td>1st Submission yet to work - TCE</td><td id="val_yet_tce" style="text-align: right;">0</td></tr>
+          <tr><td>1st Submission Yet to work - Everest</td><td id="val_yet_everest" style="text-align: right;">0</td></tr>
+          
+          <!-- Review Pending with HE (as per ACC) -->
+          <tr>
+            <td>
+              Review Pending with HE (as per ACC)
+              <span style="font-size: 0.75rem; color: #64748b; margin-left: 8px;">(Manual override or ACC Export)</span>
+            </td>
+            <td style="text-align: right;">
+              <span id="val_rev_he_acc_text">–</span>
+              <input type="number" id="accManualInput" class="inline-input" placeholder="Edit" title="Type to store manually in browser">
+            </td>
+          </tr>
+
+          <tr><td>Review pending with Client ( as per CDL)</td><td id="val_rev_client_cdl" style="text-align: right;">0</td></tr>
+          <tr><td>Approved drawing ( CAT1+CAT4)</td><td id="val_app_cat1_4" style="text-align: right;">0</td></tr>
+          <tr><td>CAT2</td><td id="val_cat2" style="text-align: right;">0</td></tr>
+          <tr><td>CAT3</td><td id="val_cat3" style="text-align: right;">0</td></tr>
+          <tr><td>Approved Everest Docs</td><td id="val_app_everest" style="text-align: right;">0</td></tr>
+          <tr><td>Approved TCE Docs</td><td id="val_app_tce" style="text-align: right;">0</td></tr>
+          <tr><td>Resubmission pending with TCE</td><td id="val_resub_tce" style="text-align: right;">0</td></tr>
+          <tr><td>Resubmission pending with Everest</td><td id="val_resub_everest" style="text-align: right;">0</td></tr>
+          
+          <!-- Completion rows in Blue -->
+          <tr class="row-highlight-blue"><td>Percentage completion by Everest</td><td id="val_pct_everest" style="text-align: right;">0.0%</td></tr>
+          <tr class="row-highlight-blue"><td>Percentage completion by TCE</td><td id="val_pct_tce" style="text-align: right;">0.0%</td></tr>
+          <tr class="row-highlight-blue"><td>Percentage completion for CAT I & CAT IV (overall)</td><td id="val_pct_overall" style="text-align: right;">0.0%</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Split View: Table 2 & Chart -->
+    <div class="split-view">
+      
+      <!-- Table 2: Baseline date Vs HE -->
+      <div class="table-container">
+        <table id="baselineTable">
+          <thead>
+            <tr>
+              <th style="width: 70%;">Description - Baseline date Vs HE</th>
+              <th style="width: 30%; text-align: right;" id="t2SiteColHeader">All Sites</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>As per Base line No. of submittals required</td>
+              <td id="val_base_req" style="text-align: right;">0</td>
+            </tr>
+            <tr>
+              <td>As per base line - Submitted</td>
+              <td id="val_base_sub" style="text-align: right;">0</td>
+            </tr>
+            <tr>
+              <td>As per base line - Not submitted</td>
+              <td id="val_base_not_sub" style="text-align: right;">0</td>
+            </tr>
+            <tr class="row-highlight-blue">
+              <td>Total number of Document submitted as of now</td>
+              <td id="val_tot_sub_now" style="text-align: right;">0</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Baseline vs Actual Combo Chart -->
+      <div class="chart-box">
+        <h3>Baseline vs Actual Submittals</h3>
+        <div class="chart-container">
+          <canvas id="baselineChart"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    // State management
+    let rawCDLData = [];
+    let accPendingCount = null;
+    let chartInstance = null;
+
+    // Excel Column Names
+    const COL_CIVIL = "Civil";
+    const COL_SITE = "Site Id";
+    const COL_SUPPLIER = "Supplier Name";
+    const COL_STATE = "Document Lifecycle State";
+    const COL_CODE = "BF800 Customer approval code";
+    const COL_BASELINE_DATE = "Baseline Date";
+    const COL_FIRST_SUBMIT_DATE = "First submittal date";
+
+    // Initialize application
+    document.addEventListener("DOMContentLoaded", () => {
+      setupEventListeners();
+      loadManualACCStorage();
+      initChart();
+      loadSampleData(); // Initial view before file upload
+    });
+
+    function setupEventListeners() {
+      document.getElementById('cdlFileInput').addEventListener('change', handleCDLUpload);
+      document.getElementById('accFileInput').addEventListener('change', handleACCUpload);
+      document.getElementById('siteFilter').addEventListener('change', renderDashboard);
+      
+      const manualInput = document.getElementById('accManualInput');
+      manualInput.addEventListener('input', (e) => {
+        const val = e.target.value;
+        if (val !== "") {
+          localStorage.setItem('acc_manual_pending', val);
+        } else {
+          localStorage.removeItem('acc_manual_pending');
+        }
+        renderDashboard();
+      });
+    }
+
+    function loadManualACCStorage() {
+      const savedVal = localStorage.getItem('acc_manual_pending');
+      if (savedVal !== null) {
+        document.getElementById('accManualInput').value = savedVal;
+      }
+    }
+
+    // CDL Upload Handler
+    function handleCDLUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        rawCDLData = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+
+        populateSiteDropdown();
+        renderDashboard();
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // ACC Upload Handler
+    function handleACCUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const colName = prompt("Enter ACC Status Column Name:", "Status") || "Status";
+      const statusValue = prompt("Enter ACC Pending Status Value:", "Pending") || "Pending";
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const accData = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+
+        let count = 0;
+        accData.forEach(row => {
+          const val = String(row[colName] || "").trim().toLowerCase();
+          if (val === statusValue.trim().toLowerCase()) {
+            count++;
+          }
+        });
+
+        accPendingCount = count;
+        alert(`ACC Export Processed: Found ${count} items matching '${statusValue}' in '${colName}'.`);
+        renderDashboard();
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function populateSiteDropdown() {
+      const siteSelect = document.getElementById('siteFilter');
+      siteSelect.innerHTML = '<option value="ALL">All Sites</option>';
+
+      // Filter in-scope civil records
+      const sites = new Set();
+      rawCDLData.forEach(row => {
+        if (String(row[COL_CIVIL] || "").trim().toLowerCase() === "yes" && row[COL_SITE]) {
+          sites.add(String(row[COL_SITE]).trim());
+        }
+      });
+
+      Array.from(sites).sort().forEach(site => {
+        const opt = document.createElement('option');
+        opt.value = site;
+        opt.textContent = site;
+        siteSelect.appendChild(opt);
+      });
+    }
+
+    function renderDashboard() {
+      const selectedSite = document.getElementById('siteFilter').value;
+
+      // Update table headers
+      document.getElementById('t1SiteColHeader').textContent = selectedSite === "ALL" ? "All Sites" : selectedSite;
+      document.getElementById('t2SiteColHeader').textContent = selectedSite === "ALL" ? "All Sites" : selectedSite;
+
+      // Filter Data: Civil = Yes, Site Match
+      const filtered = rawCDLData.filter(row => {
+        const isCivil = String(row[COL_CIVIL] || "").trim().toLowerCase() === "yes";
+        const siteMatch = (selectedSite === "ALL") || (String(row[COL_SITE] || "").trim() === selectedSite);
+        return isCivil && siteMatch;
+      });
+
+      // Calculations
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+
+      let totDrawings = filtered.length;
+      let totEverest = 0, totTce = 0;
+      let subEverest = 0, subTce = 0;
+      let revClientCDL = 0;
+      let cat1_4 = 0, cat2 = 0, cat3 = 0;
+      let appEverest = 0, appTce = 0;
+
+      // Baseline vs HE
+      let reqBaseline = 0;
+      let subBaseline = 0;
+      let totSubNow = 0;
+
+      // Dynamic Monthly Trends for Chart
+      const monthlyData = {};
+
+      filtered.forEach(row => {
+        const supplier = String(row[COL_SUPPLIER] || "").toLowerCase();
+        const state = String(row[COL_STATE] || "").toLowerCase();
+        const code = String(row[COL_CODE] || "").toUpperCase();
+
+        const isEverest = supplier.includes("everest");
+        const isTce = supplier.includes("tce") || supplier.includes("tata consulting");
+
+        if (isEverest) totEverest++;
+        if (isTce) totTce++;
+
+        const isCustApproved = state.includes("customer approved");
+        if (isEverest && isCustApproved) subEverest++;
+        if (isTce && isCustApproved) subTce++;
+
+        if (state.includes("sent to customer for approval")) revClientCDL++;
+
+        if (code.includes("CAT-1") || code.includes("CAT-4")) cat1_4++;
+        if (code.includes("CAT-2")) cat2++;
+        if (code.includes("CAT-3")) cat3++;
+
+        if (isEverest && code.includes("CAT-1")) appEverest++;
+        if (isTce && code.includes("CAT-1")) appTce++;
+
+        // Baseline date calculations
+        const rawBaseDate = row[COL_BASELINE_DATE];
+        const rawSubDate = row[COL_FIRST_SUBMIT_DATE];
+
+        const baseDate = rawBaseDate ? new Date(rawBaseDate) : null;
+        const subDate = rawSubDate ? new Date(rawSubDate) : null;
+
+        const hasSubDate = subDate && !isNaN(subDate.getTime());
+        const hasBaseDate = baseDate && !isNaN(baseDate.getTime());
+
+        if (hasSubDate) totSubNow++;
+
+        if (hasBaseDate && baseDate <= today) {
+          reqBaseline++;
+          if (hasSubDate) {
+            subBaseline++;
+          }
+        }
+
+        // Aggregate for Chart per month
+        if (hasBaseDate) {
+          const monthKey = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, '0')}`;
+          if (!monthlyData[monthKey]) {
+            monthlyData[monthKey] = { req: 0, sub: 0 };
+          }
+          monthlyData[monthKey].req++;
+          if (hasSubDate && subDate <= baseDate) {
+            monthlyData[monthKey].sub++;
+          }
+        }
+      });
+
+      const yetTce = totTce - subTce;
+      const yetEverest = totEverest - subEverest;
+      const resubTce = subTce - appTce;
+      const resubEverest = subEverest - appEverest;
+
+      const pctEverest = totEverest > 0 ? ((subEverest / totEverest) * 100).toFixed(1) : "0.0";
+      const pctTce = totTce > 0 ? ((subTce / totTce) * 100).toFixed(1) : "0.0";
+      const pctOverall = totDrawings > 0 ? ((cat1_4 / totDrawings) * 100).toFixed(1) : "0.0";
+
+      const notSubBaseline = reqBaseline - subBaseline;
+
+      // Update Table 1 DOM
+      document.getElementById('val_tot_drawings').textContent = totDrawings;
+      document.getElementById('val_tot_everest').textContent = totEverest;
+      document.getElementById('val_tot_tce').textContent = totTce;
+      document.getElementById('val_sub_tce').textContent = subTce;
+      document.getElementById('val_sub_everest').textContent = subEverest;
+      document.getElementById('val_yet_tce').textContent = yetTce;
+      document.getElementById('val_yet_everest').textContent = yetEverest;
+
+      // ACC Handling
+      const manualVal = document.getElementById('accManualInput').value;
+      let finalACCVal = "–";
+      if (manualVal !== "") {
+        finalACCVal = manualVal;
+      } else if (accPendingCount !== null) {
+        finalACCVal = accPendingCount;
+      }
+      document.getElementById('val_rev_he_acc_text').textContent = finalACCVal;
+
+      document.getElementById('val_rev_client_cdl').textContent = revClientCDL;
+      document.getElementById('val_app_cat1_4').textContent = cat1_4;
+      document.getElementById('val_cat2').textContent = cat2;
+      document.getElementById('val_cat3').textContent = cat3;
+      document.getElementById('val_app_everest').textContent = appEverest;
+      document.getElementById('val_app_tce').textContent = appTce;
+      document.getElementById('val_resub_tce').textContent = resubTce;
+      document.getElementById('val_resub_everest').textContent = resubEverest;
+
+      document.getElementById('val_pct_everest').textContent = pctEverest + "%";
+      document.getElementById('val_pct_tce').textContent = pctTce + "%";
+      document.getElementById('val_pct_overall').textContent = pctOverall + "%";
+
+      // Update Table 2 DOM
+      document.getElementById('val_base_req').textContent = reqBaseline;
+      document.getElementById('val_base_sub').textContent = subBaseline;
+      
+      const notSubTd = document.getElementById('val_base_not_sub');
+      notSubTd.textContent = notSubBaseline;
+      if (notSubBaseline > 0) {
+        notSubTd.classList.add('text-red');
+      } else {
+        notSubTd.classList.remove('text-red');
+      }
+
+      document.getElementById('val_tot_sub_now').textContent = totSubNow;
+
+      // Update Top Card
+      document.getElementById('cardReqVal').textContent = reqBaseline;
+      document.getElementById('cardSubVal').textContent = subBaseline;
+      document.getElementById('cardNotSubVal').textContent = notSubBaseline;
+
+      const subPctStr = reqBaseline > 0 ? ((subBaseline / reqBaseline) * 100).toFixed(1) + "%" : "0%";
+      const notSubPctStr = reqBaseline > 0 ? ((notSubBaseline / reqBaseline) * 100).toFixed(1) + "%" : "0%";
+
+      document.getElementById('cardSubPct').textContent = subPctStr;
+      document.getElementById('cardNotSubPct').textContent = notSubPctStr;
+
+      // Update Combo Chart
+      updateChart(monthlyData, reqBaseline, subBaseline, notSubBaseline);
+    }
+
+    function initChart() {
+      const ctx = document.getElementById('baselineChart').getContext('2d');
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Required', 'Submitted', 'Not Submitted'],
+          datasets: [
+            {
+              type: 'bar',
+              label: 'Documents',
+              data: [0, 0, 0],
+              backgroundColor: ['#2563eb', '#16a34a', '#dc2626'],
+              yAxisID: 'y'
+            },
+            {
+              type: 'line',
+              label: '% Compliance',
+              data: [100, 0, 0],
+              borderColor: '#d97706',
+              backgroundColor: '#d97706',
+              borderWidth: 2,
+              fill: false,
+              yAxisID: 'y1'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Document Count' }
+            },
+            y1: {
+              beginAtZero: true,
+              max: 100,
+              position: 'right',
+              grid: { drawOnChartArea: false },
+              title: { display: true, text: 'Percentage (%)' }
+            }
+          }
+        }
+      });
+    }
+
+    function updateChart(monthlyData, req, sub, notSub) {
+      if (!chartInstance) return;
+
+      const months = Object.keys(monthlyData).sort();
+      if (months.length > 0) {
+        const labels = months;
+        const reqData = months.map(m => monthlyData[m].req);
+        const subData = months.map(m => monthlyData[m].sub);
+        const pctData = months.map(m => monthlyData[m].req > 0 ? ((monthlyData[m].sub / monthlyData[m].req) * 100).toFixed(1) : 0);
+
+        chartInstance.data.labels = labels;
+        chartInstance.data.datasets = [
+          {
+            type: 'bar',
+            label: 'Baseline Required',
+            data: reqData,
+            backgroundColor: '#2563eb',
+            yAxisID: 'y'
+          },
+          {
+            type: 'bar',
+            label: 'Actual Submitted',
+            data: subData,
+            backgroundColor: '#16a34a',
+            yAxisID: 'y'
+          },
+          {
+            type: 'line',
+            label: '% Submitted vs Baseline',
+            data: pctData,
+            borderColor: '#d97706',
+            backgroundColor: '#d97706',
+            borderWidth: 2,
+            fill: false,
+            yAxisID: 'y1'
+          }
+        ];
+      } else {
+        const pct = req > 0 ? ((sub / req) * 100).toFixed(1) : 0;
+        chartInstance.data.labels = ['Required', 'Submitted', 'Not Submitted'];
+        chartInstance.data.datasets = [
+          {
+            type: 'bar',
+            label: 'Documents',
+            data: [req, sub, notSub],
+            backgroundColor: ['#2563eb', '#16a34a', '#dc2626'],
+            yAxisID: 'y'
+          },
+          {
+            type: 'line',
+            label: '% Submitted',
+            data: [100, pct, (100 - pct)],
+            borderColor: '#d97706',
+            backgroundColor: '#d97706',
+            borderWidth: 2,
+            fill: false,
+            yAxisID: 'y1'
+          }
+        ];
+      }
+      chartInstance.update();
+    }
+
+    // Default sample data loader for immediate testing
+    function loadSampleData() {
+      rawCDLData = [
+        { "Civil": "Yes", "Site Id": "Bhadla - Fatehpur HVDC", "Supplier Name": "Everest Industries Ltd", "Document Lifecycle State": "Customer approved", "BF800 Customer approval code": "CAT-1 Approved", "Baseline Date": "2026-01-15", "First submittal date": "2026-01-10" },
+        { "Civil": "Yes", "Site Id": "Bhadla - Fatehpur HVDC", "Supplier Name": "Everest Industries Ltd", "Document Lifecycle State": "Customer approved", "BF800 Customer approval code": "CAT-1 Approved", "Baseline Date": "2026-02-10", "First submittal date": "2026-02-12" },
+        { "Civil": "Yes", "Site Id": "Bhadla - Fatehpur HVDC", "Supplier Name": "Everest Industries Ltd", "Document Lifecycle State": "Draft", "BF800 Customer approval code": "", "Baseline Date": "2026-03-01", "First submittal date": "" },
+        { "Civil": "Yes", "Site Id": "Fatehpur HVDC", "Supplier Name": "TATA CONSULTING ENGINEERS LIMITED", "Document Lifecycle State": "Customer approved", "BF800 Customer approval code": "CAT-1 Approved", "Baseline Date": "2026-01-20", "First submittal date": "2026-01-18" },
+        { "Civil": "Yes", "Site Id": "Fatehpur HVDC", "Supplier Name": "TATA CONSULTING ENGINEERS LIMITED", "Document Lifecycle State": "Customer approved with comments", "BF800 Customer approval code": "CAT-2 Approved with comments", "Baseline Date": "2026-02-15", "First submittal date": "2026-02-14" },
+        { "Civil": "Yes", "Site Id": "Fatehpur HVDC", "Supplier Name": "TATA CONSULTING ENGINEERS LIMITED", "Document Lifecycle State": "Sent to customer for approval", "BF800 Customer approval code": "", "Baseline Date": "2026-03-10", "First submittal date": "2026-03-05" },
+        { "Civil": "Yes", "Site Id": "Fatehpur HVDC", "Supplier Name": "TATA CONSULTING ENGINEERS LIMITED", "Document Lifecycle State": "Draft", "BF800 Customer approval code": "", "Baseline Date": "2026-04-01", "First submittal date": "" }
+      ];
+      populateSiteDropdown();
+      renderDashboard();
+    }
+  </script>
+</body>
+</html>
