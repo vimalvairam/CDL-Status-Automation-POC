@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CDL Tracking Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f4f6f9;--card:#fff;--ink:#1d2733;--mute:#5d6b7a;--head:#9dc3e6;--sub:#d9d9d9;--line:#c9d1da;--ok:#c6e0b4;--warn:#ffe699;--bad:#f8cbad;--bar:#2e75b6;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141a21;--card:#1d2630;--ink:#e6ebf0;--mute:#9aa8b6;--head:#2f5b86;--sub:#2b3642;--line:#3a4756;--ok:#35513a;--warn:#5c4f22;--bad:#5e3a2c;--bar:#6fa8dc}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+main{max-width:760px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:22px;margin:0 0 4px}
+p.s{color:var(--mute);margin:0 0 16px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);padding:12px;border-radius:6px;margin-bottom:16px}
+label{font-size:13px;color:var(--mute)}
+select,input[type=file]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:5px}
+.wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--ink)}
+th,td{border:1px solid var(--ink);padding:5px 8px;text-align:left}
+td.n{text-align:center;width:130px}
+th{background:var(--head);text-align:center}
+tr.g td:first-child{background:var(--sub)}
+tr.b td{font-weight:700}
+tr.p td{background:var(--head);font-weight:700}
+.ok{background:var(--ok)}.warn{background:var(--warn)}.bad{background:var(--bad)}
+.note{font-size:13px;color:var(--mute);margin-top:12px}
+.alert{background:var(--warn);color:#000;padding:8px 10px;border-radius:4px;margin-top:12px;font-size:13px}
+.prog{display:grid;gap:8px;margin:18px 0}
+.prog div.r{display:grid;grid-template-columns:90px 1fr 48px;gap:8px;align-items:center}
+.track{background:var(--sub);height:14px;border-radius:3px;overflow:hidden}
+.fill{height:100%;background:var(--bar)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:18px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+.kpi b{display:block;font-size:26px}.kpi span{font-size:13px;color:var(--mute)}
+.cc{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px;margin-bottom:14px}
+.cc h2{font-size:15px;margin:0 0 8px}
+.ch{position:relative;height:280px}
+</style>
+</head>
+<body>
+<main>
+<h1>CDL tracking dashboard</h1>
+<p class="s">Upload this week’s CDL Excel file. Everything is calculated in your browser; the file is not sent anywhere.</p>
+<div class="bar">
+  <label>CDL file <input type="file" id="f" accept=".xlsx,.xls"></label>
+  <label>Site <select id="site"><option value="Bhadla">Bhadla</option><option value="Fatehpur">Fatehpur</option><option value="">All sites</option></select></label>
+  <label>Scope <select id="civ"><option value="Yes">Civil only</option><option value="">All disciplines</option></select></label>
+</div>
+<div id="out"><p class="note">No file loaded yet.</p></div>
+</main>
+<script>
+// ---- RULES (change here if your definitions change) ----
+var COL={site:'Site Id',civil:'Civil',supplier:'Supplier Name',state:'Document Lifecycle State',code:'BF800 Customer approval code'};
+function supplier(v){v=String(v||'').toLowerCase();if(v.indexOf('everest')>-1)return 'E';if(v.indexOf('tata consulting')>-1)return 'T';return null;}
+var rows=[];
+function calc(){
+  var site=document.getElementById('site').value,civ=document.getElementById('civ').value;
+  var c={E:0,T:0,subE:0,subT:0,client:0,c14:0,c2:0,c3:0,apE:0,apT:0,S:{E:[0,0,0,0,0,0],T:[0,0,0,0,0,0]},dr:{}};
+  rows.forEach(function(r){
+    if(site&&String(r[COL.site]||'').indexOf(site)<0)return;
+    if(civ&&String(r[COL.civil]||'').trim()!==civ)return;
+    var s=supplier(r[COL.supplier]);if(!s)return;
+    var st=String(r[COL.state]||'').trim(),cd=String(r[COL.code]||'').trim().toUpperCase();
+    c[s]++;
+    var k=(cd.indexOf('CAT-1')===0||cd.indexOf('CAT-4')===0)?0:cd.indexOf('CAT-2')===0?1:cd.indexOf('CAT-3')===0?2:st==='Sent to customer for approval'?3:st===''?4:5;
+    c.S[s][k]++;
+    if(k===4){var dr=String(r['Delay Reason']||'').trim()||'No reason recorded';c.dr[dr]=(c.dr[dr]||0)+1;}
+    if(st==='Customer approved')c['sub'+s]++;
+    if(st==='Sent to customer for approval')c.client++;
+    if(cd.indexOf('CAT-1')===0||cd.indexOf('CAT-4')===0)c.c14++;
+    if(cd.indexOf('CAT-2')===0)c.c2++;
+    if(cd.indexOf('CAT-3')===0)c.c3++;
+    if(cd.indexOf('CAT-1')===0)c['ap'+s]++;
+  });
+  var tot=c.E+c.T,pct=function(a,b){return b?Math.round(a/b*100):0};
+  var v={tot:tot,E:c.E,T:c.T,subT:c.subT,subE:c.subE,yT:c.T-c.subT,yE:c.E-c.subE,client:c.client,c14:c.c14,c2:c.c2,c3:c.c3,apE:c.apE,apT:c.apT,rT:c.subT-c.apT,rE:c.subE-c.apE,pE:pct(c.apE,c.E),pT:pct(c.apT,c.T),pA:pct(c.c14,tot),S:c.S,dr:c.dr};
+  draw(v,site||'All sites');
+}
+function row(l,val,cls,rc){return '<tr class="g'+(rc?' '+rc:'')+'"><td>'+l+'</td><td class="n '+(cls||'')+'">'+val+'</td></tr>';}
+function draw(v,site){
+  var h='<div class="wrap"><table><tr><th>Description – '+(document.getElementById('civ').value?'Civil ':'')+'Deliverables</th><th>'+site+'</th></tr>';
+  h+=row('Total No of drawings',v.tot,'','b')+row('Total deliverables by Everest',v.E,'','b')+row('Total deliverables by TCE',v.T,'','b');
+  h+=row('Submitted by TCE',v.subT)+row('Submitted by Everest',v.subE);
+  h+=row('1st Submission yet to work – TCE',v.yT)+row('1st Submission yet to work – Everest',v.yE);
+  h+=row('Review pending with Client (as per CDL)',v.client);
+  h+=row('Approved drawing (CAT1+CAT4)',v.c14,'ok')+row('CAT2',v.c2,'warn')+row('CAT3',v.c3,'bad');
+  h+=row('Approved Everest Docs',v.apE)+row('Approved TCE Docs',v.apT);
+  h+=row('Resubmission pending with TCE',v.rT)+row('Resubmission pending with Everest',v.rE);
+  h+='<tr class="p"><td>Percentage completion by Everest</td><td class="n">'+v.pE+'%</td></tr><tr class="p"><td>Percentage completion by TCE</td><td class="n">'+v.pT+'%</td></tr><tr class="p"><td>Percentage completion for CAT I &amp; CAT IV (overall)</td><td class="n">'+v.pA+'%</td></tr></table></div>';
+  h+='<div class="prog">'+[['Everest',v.pE],['TCE',v.pT],['Overall',v.pA]].map(function(x){return '<div class="r"><span>'+x[0]+'</span><div class="track"><div class="fill" style="width:'+x[1]+'%"></div></div><b>'+x[1]+'%</b></div>'}).join('')+'</div>';
+  h+='<div class="kpis"><div class="kpi"><b>'+v.tot+'</b><span>Total deliverables</span></div><div class="kpi"><b>'+v.pA+'%</b><span>Approved (CAT-1/4)</span></div><div class="kpi"><b>'+v.client+'</b><span>Pending with client</span></div><div class="kpi"><b>'+(v.S.E[4]+v.S.T[4])+'</b><span>Not yet submitted</span></div></div>';
+  h+='<div class="cc"><h2>Status by supplier</h2><div class="ch"><canvas id="c1"></canvas></div></div><div class="cc"><h2>Overall status split</h2><div class="ch"><canvas id="c2"></canvas></div></div><div class="cc"><h2>Why documents are not yet submitted (delay reason)</h2><div class="ch"><canvas id="c3"></canvas></div></div>';
+  if(v.rT<0||v.rE<0)h+='<div class="alert">Resubmission pending is negative. More documents are approved (CAT-1) than counted as submitted, because “submitted” is currently defined as lifecycle state = Customer approved. Review that rule.</div>';
+  h+='<p class="note">Rules: supplier is taken from Supplier Name (Everest / Tata Consulting Engineers = TCE). Submitted = Document Lifecycle State is “Customer approved”. Approved = BF800 approval code CAT-1 (CAT-1 + CAT-4 for the combined row). Completion % = approved docs ÷ total deliverables.</p>';
+  document.getElementById('out').innerHTML=h;charts(v);
+}
+var CH=[];
+function charts(v){
+  CH.forEach(function(x){x.destroy()});CH=[];
+  if(!window.Chart)return;
+  var cs=getComputedStyle(document.documentElement);
+  Chart.defaults.color=cs.getPropertyValue('--ink').trim();Chart.defaults.borderColor=cs.getPropertyValue('--line').trim();
+  var L=['Approved (CAT-1/4)','CAT-2','CAT-3','With client','Not submitted','Other status'],K=['#4e9a51','#e0b422','#d9663a','#2e75b6','#9aa5b1','#7c6bb0'];
+  var o={responsive:true,maintainAspectRatio:false};
+  CH.push(new Chart(document.getElementById('c1'),{type:'bar',data:{labels:['Everest','TCE'],datasets:L.map(function(l,i){return{label:l,data:[v.S.E[i],v.S.T[i]],backgroundColor:K[i]}})},options:Object.assign({},o,{scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}}})}));
+  CH.push(new Chart(document.getElementById('c2'),{type:'doughnut',data:{labels:L,datasets:[{data:L.map(function(l,i){return v.S.E[i]+v.S.T[i]}),backgroundColor:K}]},options:Object.assign({},o,{plugins:{legend:{position:'right'}}})}));
+  var d=Object.keys(v.dr).map(function(k){return[k,v.dr[k]]}).sort(function(a,b){return b[1]-a[1]});
+  CH.push(new Chart(document.getElementById('c3'),{type:'bar',data:{labels:d.map(function(x){return x[0]}),datasets:[{label:'Documents',data:d.map(function(x){return x[1]}),backgroundColor:'#2e75b6'}]},options:Object.assign({},o,{indexAxis:'y',plugins:{legend:{display:false}}})}));
+}
+document.getElementById('f').addEventListener('change',function(e){
+  var file=e.target.files[0];if(!file)return;
+  var rd=new FileReader();
+  rd.onload=function(ev){
+    try{var wb=XLSX.read(ev.target.result,{type:'array'});rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+      if(!rows.length||!(COL.supplier in rows[0])){document.getElementById('out').innerHTML='<div class="alert">This file does not look like a CDL: the “Supplier Name” column was not found in the first sheet.</div>';return;}
+      calc();}catch(err){document.getElementById('out').innerHTML='<div class="alert">Could not read this file. Please upload the .xlsx CDL export.</div>';}
+  };
+  rd.readAsArrayBuffer(file);
+});
+['site','civ'].forEach(function(i){document.getElementById(i).addEventListener('change',function(){if(rows.length)calc();});});
+</script>
+</body>
+</html>
